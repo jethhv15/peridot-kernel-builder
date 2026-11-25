@@ -1,0 +1,64 @@
+name: Build Peridot 6.1.176 Kernel
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+
+jobs:
+  build-kernel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Checkout Builder Repo
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex git \
+            libssl-dev libelf-dev dwarves python3 zstd lz4 zip unzip
+
+      - name: Fetch AOSP Clang Toolchain
+        run: |
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b main clang-prebuilts
+          CLANG_DIR=$(ls -d clang-prebuilts/clang-r* | sort -V | tail -n 1)
+          echo "CLANG_PATH=$GITHUB_WORKSPACE/$CLANG_DIR/bin" >> $GITHUB_ENV
+
+      - name: Clone AOSP GKI 6.1.176 Source
+        run: |
+          git clone --depth=250 https://android.googlesource.com/kernel/common -b android14-6.1-lts kernel
+          cd kernel
+          COMMIT_176=$(git log --grep="6.1.176" --format="%H" | tail -n 1)
+          if [ -n "$COMMIT_176" ]; then
+            git checkout "$COMMIT_176"
+          fi
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
+            [ -f "$p" ] && git apply "$p"
+          done
+
+      - name: Configure and Compile Kernel
+        run: |
+          export PATH="$CLANG_PATH:$PATH"
+          cd kernel
+          ARCH=arm64 LLVM=1 LLVM_IAS=1 make O=out gki_defconfig
+          ./scripts/kconfig/merge_config.sh -m -O out out/.config "$GITHUB_WORKSPACE/config/peridot_perf.fragment"
+          ARCH=arm64 LLVM=1 LLVM_IAS=1 make O=out olddefconfig
+          echo "-ga8c0603e6a97" > out/.scmversion
+          ARCH=arm64 LLVM=1 LLVM_IAS=1 make -j$(nproc --all) O=out Image
+
+      - name: Package AnyKernel3 Zip
+        run: |
+          git clone --depth=1 https://github.com/osm0sis/AnyKernel3.git ak3
+          rm -rf ak3/.git ak3/modules ak3/patch ak3/ramdisk
+          cp "$GITHUB_WORKSPACE/anykernel/anykernel.sh" ak3/anykernel.sh
+          cp kernel/out/arch/arm64/boot/Image ak3/Image
+          cd ak3
+          zip -r9 "$GITHUB_WORKSPACE/Peridot-6.1.176-Jethh-KSU.zip" ./*
+
+      - name: Upload Flashable Zip Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Peridot-6.1.176-Jethh-KSU
+          path: Peridot-6.1.176-Jethh-KSU.zip
