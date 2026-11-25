@@ -34,6 +34,8 @@ jobs:
             git checkout "$COMMIT_176"
           fi
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
+          sed -i 's/char \*next_path;/const char *next_path;/g' tools/lib/bpf/libbpf.c || true
+          find tools scripts -name "Makefile*" -exec sed -i 's/-Werror//g' {} +
           for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
             if [ -f "$p" ]; then
               git apply "$p"
@@ -52,6 +54,7 @@ jobs:
           rm -f out/.scmversion
           ARCH=arm64 LLVM=1 LLVM_IAS=1 make -j$(nproc --all) O=out \
             HOSTCC="clang -std=gnu11 -Wno-error" \
+            HOSTCFLAGS="-std=gnu11 -Wno-error" \
             KCFLAGS="-Wno-error" \
             Image
           echo "Built kernel release: $(cat out/include/config/kernel.release)"
