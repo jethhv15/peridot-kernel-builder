@@ -33,20 +33,24 @@ jobs:
           if [ -n "$COMMIT_176" ]; then
             git checkout "$COMMIT_176"
           fi
-          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -s next
+          curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
-            [ -f "$p" ] && git apply "$p"
+            if [ -f "$p" ]; then
+              git apply "$p"
+            fi
           done
 
       - name: Configure and Compile Kernel
         run: |
           export PATH="$CLANG_PATH:$PATH"
           cd kernel
+          rm -f localversion*
           ARCH=arm64 LLVM=1 LLVM_IAS=1 make O=out gki_defconfig
           ./scripts/kconfig/merge_config.sh -m -O out out/.config "$GITHUB_WORKSPACE/config/peridot_perf.fragment"
           ARCH=arm64 LLVM=1 LLVM_IAS=1 make O=out olddefconfig
-          echo "-ga8c0603e6a97" > out/.scmversion
+          rm -f out/.scmversion
           ARCH=arm64 LLVM=1 LLVM_IAS=1 make -j$(nproc --all) O=out Image
+          echo "Built kernel release: $(cat out/include/config/kernel.release)"
 
       - name: Package AnyKernel3 Zip
         run: |
