@@ -19,9 +19,9 @@ jobs:
           sudo apt-get install -y bc bison build-essential ccache curl flex git \
             libssl-dev libelf-dev dwarves python3 zstd lz4 zip unzip
 
-      - name: Fetch AOSP Clang Toolchain
+      - name: Fetch AOSP GKI 6.1 Clang Toolchain
         run: |
-          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b main clang-prebuilts
+          git clone --depth=1 https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86 -b android14-release clang-prebuilts
           CLANG_DIR=$(ls -d clang-prebuilts/clang-r* | sort -V | tail -n 1)
           echo "CLANG_PATH=$GITHUB_WORKSPACE/$CLANG_DIR/bin" >> $GITHUB_ENV
 
@@ -50,7 +50,10 @@ jobs:
           ./scripts/kconfig/merge_config.sh -m -O out out/.config "$GITHUB_WORKSPACE/config/peridot_perf.fragment"
           ARCH=arm64 LLVM=1 LLVM_IAS=1 make O=out olddefconfig
           rm -f out/.scmversion
-          ARCH=arm64 LLVM=1 LLVM_IAS=1 make -j$(nproc --all) O=out Image
+          ARCH=arm64 LLVM=1 LLVM_IAS=1 make -j$(nproc --all) O=out \
+            HOSTCC="clang -std=gnu11 -Wno-error" \
+            KCFLAGS="-Wno-error" \
+            Image
           echo "Built kernel release: $(cat out/include/config/kernel.release)"
 
       - name: Package AnyKernel3 Zip
