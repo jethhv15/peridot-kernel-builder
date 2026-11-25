@@ -36,7 +36,7 @@ jobs:
           curl -LSs "https://raw.githubusercontent.com/KernelSU-Next/KernelSU-Next/next/kernel/setup.sh" | bash -
           sed -i 's/char \*next_path;/const char *next_path;/g' tools/lib/bpf/libbpf.c || true
           sed -i -E 's/-Werror([^=]|$)/\1/g' tools/lib/bpf/Makefile tools/bpf/resolve_btfids/Makefile || true
-          sed -i '/#include "kasan.h"/a #ifndef CONFIG_KASAN_HW_TAGS\nstatic inline void hw_suppress_tag_checks_start(void) {}\nstatic inline void hw_suppress_tag_checks_stop(void) {}\n#endif' mm/kasan/report.c
+          sed -i '/#include "kasan.h"/a static inline void hw_suppress_tag_checks_start(void) {}\nstatic inline void hw_suppress_tag_checks_stop(void) {}' mm/kasan/report.c
           for p in "$GITHUB_WORKSPACE"/patches/*.patch; do
             if [ -f "$p" ]; then
               git apply "$p"
